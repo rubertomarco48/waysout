@@ -1,6 +1,10 @@
-import ResultRow from "./ResultRow.jsx";
+import { useState } from "react";
+import ResultCard from "./ResultCard.jsx";
+import TripDetailModal from "./TripDetailModal.jsx";
 
 export default function ResultsBoard({ results, loading, error, hasSearched }) {
+  const [selected, setSelected] = useState(null);
+
   if (error) {
     return (
       <div className="rounded-xl border border-red-900/50 bg-red-950/20 px-6 py-5 text-red-300">
@@ -12,9 +16,9 @@ export default function ResultsBoard({ results, loading, error, hasSearched }) {
 
   if (loading) {
     return (
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-[84px] rounded-xl border border-night-700 bg-night-800/30 animate-pulse" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="aspect-[4/5] rounded-2xl border border-night-700 bg-night-800/30 animate-pulse" />
         ))}
       </div>
     );
@@ -39,19 +43,18 @@ export default function ResultsBoard({ results, loading, error, hasSearched }) {
   }
 
   return (
-    <div>
-      <div className="hidden lg:grid grid-cols-[100px_1fr_auto_auto_auto] gap-6 px-5 pb-2 text-[10px] uppercase tracking-widest text-mist-400">
-        <div />
-        <div>Destinazione</div>
-        <div className="text-right">Volo</div>
-        <div className="text-right">Alloggio</div>
-        <div className="text-right">Totale</div>
-      </div>
-      <div className="space-y-3">
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {results.map((trip, i) => (
-          <ResultRow key={`${trip.origin_code}-${trip.dest_code}`} trip={trip} index={i} />
+          <ResultCard
+            key={`${trip.origin_code}-${trip.dest_code}`}
+            trip={trip}
+            index={i}
+            onOpen={setSelected}
+          />
         ))}
       </div>
-    </div>
+      <TripDetailModal trip={selected} onClose={() => setSelected(null)} />
+    </>
   );
 }

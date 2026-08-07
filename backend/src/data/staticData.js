@@ -94,3 +94,18 @@ export const NAME_OVERRIDE = {
   DUB: ["Dublino", "Dublino"], CPH: ["Copenaghen", "Copenaghen"],
   IST: ["Istanbul", "Istanbul"], NCE: ["Nizza", "Nizza"],
 };
+
+// IATA carrier code -> display name, for the most common European airlines.
+// Used only to make the flight-detail card friendlier; unknown codes just
+// fall back to showing the raw code (see resolveAirlineName in tripLogic.js).
+export const AIRLINE_NAMES = {
+  FR: "Ryanair", U2: "easyJet", W6: "Wizz Air", VY: "Vueling",
+  AZ: "ITA Airways", LH: "Lufthansa", AF: "Air France", KL: "KLM",
+  IB: "Iberia", BA: "British Airways", TP: "TAP Air Portugal",
+  LX: "Swiss", OS: "Austrian Airlines", SK: "SAS", EI: "Aer Lingus",
+  TK: "Turkish Airlines", EK: "Emirates", QR: "Qatar Airways",
+  SN: "Brussels Airlines", A3: "Aegean Airlines", LO: "LOT Polish Airlines",
+  DY: "Norwegian", EW: "Eurowings", VLM: "VLM Airlines", PC: "Pegasus",
+  WF: "Widerøe", D8: "Norwegian Air International", AY: "Finnair",
+  TO: "Transavia France", HV: "Transavia", V7: "Volotea", UX: "Air Europa",
+};

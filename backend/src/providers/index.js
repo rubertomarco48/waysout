@@ -33,6 +33,9 @@ export function configuredProviders() {
 
 // Queries all configured providers concurrently and returns the cheapest
 // valid offer. Returns null if none are configured or none returned a price.
+// The returned offer, when present, carries { price, departureDate,
+// returnDate, source, details } - "details" (airline/times/stops) may be
+// null if the provider couldn't extract it, callers must handle that.
 export async function getCheapestOffer(origin, dest, depDate, retDate) {
   const active = configuredProviders();
   if (!active.length) return null;

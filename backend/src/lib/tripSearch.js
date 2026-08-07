@@ -1,6 +1,6 @@
 import { AIRPORTS } from "../data/airports.js";
 import { haversine } from "./geo.js";
-import { fallbackFlightPrice, destMeta, countryIt, computeTripDates, isoDate } from "./tripLogic.js";
+import { fallbackFlightPrice, destMeta, countryIt, computeTripDates, isoDate, resolveAirlineName } from "./tripLogic.js";
 import { getCheapestOffer } from "../providers/index.js";
 import { logSearch } from "./db.js";
 
@@ -72,6 +72,10 @@ export async function searchTrips(req) {
       departure_date: isoDate(departureDate),
       return_date: isoDate(returnDate),
       price_source: "stima",
+      // Real flight schedule (airline, times, stops) is only known once a
+      // live provider responds - null here means "not available yet /
+      // estimate only", the frontend shows a friendly fallback for that.
+      flight_details: null,
     });
   }
 
@@ -101,6 +105,9 @@ export async function searchTrips(req) {
         r.total_cost = r.flight_price + r.lodging_estimate;
         r.savings = Math.round(req.budget - r.total_cost);
         r.price_source = offer.source;
+        r.flight_details = offer.details
+          ? { ...offer.details, airlineName: resolveAirlineName(offer.details.airlineCode) }
+          : null;
       })
     ),
     new Promise((resolve) => setTimeout(resolve, 20000)), // 20s overall timeout, like asyncio.wait_for

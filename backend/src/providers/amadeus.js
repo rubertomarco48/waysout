@@ -79,7 +79,13 @@ class AmadeusProvider {
         validateStatus: () => true,
       });
 
-      if (status !== 200) return null;
+      if (status !== 200) {
+        console.warn(
+          `Amadeus ${origin}->${dest}: HTTP ${status}` +
+            (data?.errors?.[0]?.detail ? ` - ${data.errors[0].detail}` : "")
+        );
+        return null;
+      }
       const offers = data.data ?? [];
       if (!offers.length) return null;
 
@@ -92,12 +98,46 @@ class AmadeusProvider {
         price: Number(best.price.total),
         departureDate: outDep,
         returnDate: retDep,
+        details: buildFlightDetails(best, itineraries),
       };
     } catch (e) {
       console.warn(`Amadeus offer error ${origin}->${dest}: ${e.message}`);
       return null;
     }
   }
+}
+
+// Turns an Amadeus flight-offer into the { airlineCode, outbound, inbound }
+// shape shared across providers. Amadeus expresses durations as ISO 8601
+// (e.g. "PT2H35M"), which we convert to plain minutes for the frontend.
+function isoDurationToMinutes(iso) {
+  if (!iso) return null;
+  const m = /^PT(?:(\d+)H)?(?:(\d+)M)?$/.exec(iso);
+  if (!m) return null;
+  const hours = Number(m[1] || 0);
+  const minutes = Number(m[2] || 0);
+  return hours * 60 + minutes;
+}
+
+function legFromItinerary(itin) {
+  if (!itin?.segments?.length) return null;
+  const segs = itin.segments;
+  return {
+    departureTime: segs[0].departure?.at ?? null,
+    arrivalTime: segs[segs.length - 1].arrival?.at ?? null,
+    stops: segs.length - 1,
+    durationMinutes: isoDurationToMinutes(itin.duration),
+  };
+}
+
+function buildFlightDetails(offer, itineraries) {
+  const carrierCode =
+    offer.validatingAirlineCodes?.[0] ?? itineraries[0]?.segments?.[0]?.carrierCode ?? null;
+  return {
+    airlineCode: carrierCode,
+    outbound: legFromItinerary(itineraries[0]),
+    inbound: itineraries.length > 1 ? legFromItinerary(itineraries[itineraries.length - 1]) : null,
+  };
 }
 
 export const amadeus = new AmadeusProvider();

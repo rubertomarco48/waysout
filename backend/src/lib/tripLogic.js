@@ -1,4 +1,4 @@
-import { CURATED, FALLBACK_IMAGES, COUNTRY_IT } from "../data/staticData.js";
+import { CURATED, FALLBACK_IMAGES, COUNTRY_IT, AIRLINE_NAMES } from "../data/staticData.js";
 import { deterministicOffset } from "./deterministic.js";
 
 // Deterministic *fallback* round-trip price estimate, used when no live
@@ -32,6 +32,13 @@ export function destMeta(code, distanceKm) {
 
 export function countryIt(name) {
   return COUNTRY_IT[name] ?? name;
+}
+
+// Resolves an IATA carrier code (e.g. "FR") to a friendly airline name
+// ("Ryanair"), falling back to the raw code for airlines not in our map.
+export function resolveAirlineName(code) {
+  if (!code) return null;
+  return AIRLINE_NAMES[code] ?? code;
 }
 
 function nextFriday(d) {

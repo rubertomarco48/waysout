@@ -43,7 +43,7 @@ export default function CookieConsentBanner() {
     >
       <div className="mx-auto max-w-3xl rounded-2xl border border-night-600 bg-night-800 shadow-2xl shadow-black/50 p-5 sm:p-6">
         <p className="text-sm text-mist-300">
-          Usiamo cookie tecnici necessari al funzionamento di waysout. Con il tuo consenso, potremmo
+          Usiamo cookie tecnici necessari al funzionamento di WaysOut. Con il tuo consenso, potremmo
           usare anche cookie di analisi statistica e marketing per migliorare il servizio — ma
           restano spenti finché non li attivi tu.{" "}
           <span className="text-mist-400">
