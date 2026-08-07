@@ -45,6 +45,65 @@ export default function SearchPanel({ form, setForm, popularAirports, onSearch, 
         </div>
       </div>
 
+      <div className="mt-6">
+        <label className="block text-xs uppercase tracking-widest text-mist-400 mb-2">Quando</label>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: "standard", label: "Flessibile" },
+            { id: "weekend", label: "Solo weekend" },
+            { id: "range", label: "Range di date" },
+          ].map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, dateMode: opt.id }))}
+              aria-pressed={form.dateMode === opt.id}
+              className={`rounded-md px-3 py-1.5 text-sm border transition-colors ${
+                form.dateMode === opt.id
+                  ? "bg-amber-500 border-amber-500 text-night-950 font-semibold"
+                  : "bg-night-700 border-night-600 text-mist-300 hover:border-amber-600/50"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {form.dateMode === "weekend" && (
+          <p className="mt-3 text-xs text-mist-400">
+            Cerchiamo partenze da un venerdì e ritorni entro la domenica, nelle prossime settimane.
+          </p>
+        )}
+
+        {form.dateMode === "range" && (
+          <div className="mt-3 flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-widest text-mist-400 mb-1.5">Dal</label>
+              <input
+                type="date"
+                value={form.dateFrom ?? ""}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setForm((f) => ({ ...f, dateFrom: e.target.value || null }))}
+                className="bg-night-700 border border-night-600 rounded-md px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-amber-500 [color-scheme:dark]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-widest text-mist-400 mb-1.5">Al</label>
+              <input
+                type="date"
+                value={form.dateTo ?? ""}
+                min={form.dateFrom || new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setForm((f) => ({ ...f, dateTo: e.target.value || null }))}
+                className="bg-night-700 border border-night-600 rounded-md px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-amber-500 [color-scheme:dark]"
+              />
+            </div>
+            {form.dateFrom && !form.dateTo && (
+              <span className="text-xs text-amber-400">Seleziona anche la data di fine</span>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-4">
         <div className="flex items-center gap-3">
           <label className="text-xs uppercase tracking-widest text-mist-400">Raggio partenza</label>

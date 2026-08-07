@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import SearchPanel from "./components/SearchPanel.jsx";
 import ResultsBoard from "./components/ResultsBoard.jsx";
+import CookieConsentBanner from "./components/CookieConsentBanner.jsx";
+import LegalModal from "./components/LegalModal.jsx";
 import { getAirports, searchTrips } from "./lib/api.js";
 
 export default function App() {
@@ -11,7 +13,11 @@ export default function App() {
     maxDays: 4,
     nearbyRadiusKm: 250,
     includeLodging: true,
+    dateMode: "standard", // "standard" | "weekend" | "range"
+    dateFrom: null,
+    dateTo: null,
   });
+  const [legalOpen, setLegalOpen] = useState(null); // null | "cookie" | "terms"
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -23,6 +29,10 @@ export default function App() {
 
   async function handleSearch() {
     if (!form.originAirport) return;
+    if (form.dateMode === "range" && (!form.dateFrom || !form.dateTo)) {
+      setError("Seleziona una data di inizio e una di fine per il range.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -32,6 +42,9 @@ export default function App() {
         origin: form.originAirport.code,
         include_lodging: form.includeLodging,
         nearby_radius_km: form.nearbyRadiusKm,
+        date_mode: form.dateMode,
+        date_from: form.dateMode === "range" ? form.dateFrom : null,
+        date_to: form.dateMode === "range" ? form.dateTo : null,
       });
       setResults(data);
     } catch (e) {
@@ -79,8 +92,36 @@ export default function App() {
       </main>
 
       <footer className="max-w-5xl mx-auto px-6 pb-10 text-center text-xs text-mist-400 font-mono">
-        waysout — dati voli forniti da Amadeus e Sky-scrapper
+        <p>waysout — dati voli forniti da Amadeus e Sky-scrapper</p>
+        <div className="mt-3 flex items-center justify-center gap-4">
+          <button
+            type="button"
+            onClick={() => setLegalOpen("cookie")}
+            className="underline decoration-dotted hover:text-amber-400 transition-colors"
+          >
+            Cookie Policy
+          </button>
+          <span className="text-night-600">·</span>
+          <button
+            type="button"
+            onClick={() => setLegalOpen("terms")}
+            className="underline decoration-dotted hover:text-amber-400 transition-colors"
+          >
+            Termini &amp; Condizioni
+          </button>
+          <span className="text-night-600">·</span>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("waysout:open-preferences"))}
+            className="underline decoration-dotted hover:text-amber-400 transition-colors"
+          >
+            Preferenze cookie
+          </button>
+        </div>
       </footer>
+
+      <LegalModal doc={legalOpen} onClose={() => setLegalOpen(null)} />
+      <CookieConsentBanner />
     </div>
   );
 }
