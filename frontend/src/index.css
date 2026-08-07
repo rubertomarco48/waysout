@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Space Grotesk", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #f2a93b;
+  color: #0b1120;
+}
+
+/* Split-flap "board" reveal, used when a result row lands. Two stacked
+   layers cross-fade with a subtle vertical squeeze, echoing a mechanical
+   flip without literally animating 26 letters (keeps it tasteful). */
+@keyframes flap-in {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.4) translateY(-6px);
+  }
+  60% {
+    opacity: 1;
+    transform: scaleY(1.05) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1) translateY(0);
+  }
+}
+
+.animate-flap {
+  animation: flap-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: top;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-flap {
+    animation: none;
+  }
+}
+
+/* Thin, deliberate scrollbar to match the board aesthetic. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #24314f;
+  border-radius: 4px;
+}

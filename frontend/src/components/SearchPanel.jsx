@@ -1,0 +1,84 @@
+import AirportAutocomplete from "./AirportAutocomplete.jsx";
+
+export default function SearchPanel({ form, setForm, popularAirports, onSearch, loading }) {
+  return (
+    <div className="rounded-2xl border border-night-600 bg-night-800/60 backdrop-blur p-6 lg:p-8">
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr_1fr] lg:items-end">
+        <AirportAutocomplete
+          value={form.originAirport}
+          onChange={(a) => setForm((f) => ({ ...f, originAirport: a }))}
+          popularAirports={popularAirports}
+        />
+
+        <div>
+          <label className="flex items-baseline justify-between text-xs uppercase tracking-widest text-mist-400 mb-2">
+            <span>Budget</span>
+            <span className="font-mono text-amber-500 text-sm normal-case">€{form.budget}</span>
+          </label>
+          <input
+            type="range"
+            min="50"
+            max="1500"
+            step="10"
+            value={form.budget}
+            onChange={(e) => setForm((f) => ({ ...f, budget: Number(e.target.value) }))}
+            className="w-full accent-amber-500"
+          />
+        </div>
+
+        <div>
+          <label className="flex items-baseline justify-between text-xs uppercase tracking-widest text-mist-400 mb-2">
+            <span>Durata max</span>
+            <span className="font-mono text-amber-500 text-sm normal-case">
+              {form.maxDays} {form.maxDays === 1 ? "giorno" : "giorni"}
+            </span>
+          </label>
+          <input
+            type="range"
+            min="1"
+            max="21"
+            step="1"
+            value={form.maxDays}
+            onChange={(e) => setForm((f) => ({ ...f, maxDays: Number(e.target.value) }))}
+            className="w-full accent-amber-500"
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-4">
+        <div className="flex items-center gap-3">
+          <label className="text-xs uppercase tracking-widest text-mist-400">Raggio partenza</label>
+          <select
+            value={form.nearbyRadiusKm}
+            onChange={(e) => setForm((f) => ({ ...f, nearbyRadiusKm: Number(e.target.value) }))}
+            className="bg-night-700 border border-night-600 rounded-md px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-amber-500"
+          >
+            <option value={0}>Solo aeroporto scelto</option>
+            <option value={100}>100 km</option>
+            <option value={250}>250 km</option>
+            <option value={500}>500 km</option>
+          </select>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-mist-300 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.includeLodging}
+            onChange={(e) => setForm((f) => ({ ...f, includeLodging: e.target.checked }))}
+            className="accent-amber-500 w-4 h-4"
+          />
+          Includi stima alloggio nel budget
+        </label>
+
+        <button
+          type="button"
+          onClick={onSearch}
+          disabled={!form.originAirport || loading}
+          className="ml-auto rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-night-600 disabled:text-mist-400 disabled:cursor-not-allowed text-night-950 font-semibold px-6 py-3 transition-colors font-display"
+        >
+          {loading ? "Ricerca in corso..." : "Trova destinazioni"}
+        </button>
+      </div>
+    </div>
+  );
+}
