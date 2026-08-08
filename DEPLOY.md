@@ -35,13 +35,23 @@ un percorso relativo (`/api/...`) quando la variabile non è definita in
 build di produzione, e Vercel instrada internamente al servizio backend
 tramite le "rewrites" in `vercel.json`.
 
-## Perché il backend Node/Express funziona senza modifiche
+## Come Vercel Services identifica il backend Node
 
-Vercel rileva automaticamente un server Node.js come funzione se il file
-di ingresso chiama `app.listen(...)` all'avvio del modulo, cercandolo
-nella radice del servizio o nella sua cartella `src/`. Il nostro
-`backend/src/index.js` fa esattamente questo — nessuna conversione a
-funzione serverless è necessaria.
+A differenza del deploy "zero-config" di Express descritto sopra, quando
+si usa **Services** Vercel richiede un `entrypoint` esplicito se rileva
+un framework (qui: Express) — non basta più che il file chiami
+`app.listen()`. Nel nostro caso:
+
+```json
+"backend": { "root": "backend/", "entrypoint": "src/index.js" }
+```
+
+`entrypoint` è relativo alla cartella del servizio (`backend/`), quindi
+punta a `backend/src/index.js`. Non ho trovato un esempio ufficiale
+Vercel con un `entrypoint` `.js` per Node (solo esempi Python tipo
+`"main:app"`), quindi se il prossimo deploy desse ancora errore su
+questo punto, prova in alternativa il percorso completo dalla radice del
+progetto: `"entrypoint": "backend/src/index.js"`.
 
 ## Se "Services" (beta) dovesse dare problemi
 
