@@ -1,4 +1,9 @@
-const BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+// In sviluppo locale, frontend e backend girano su porte diverse (3000 e
+// 3001): serve l'URL assoluto del backend. In produzione su Vercel,
+// frontend e backend sono serviti sotto lo stesso dominio grazie alle
+// "rewrites" in vercel.json, quindi basta un percorso relativo ("/api")
+// che Vercel instrada internamente al servizio backend.
+const BASE = import.meta.env.VITE_BACKEND_URL ?? (import.meta.env.DEV ? "http://localhost:3001" : "");
 const API = `${BASE}/api`;
 
 async function req(path, opts) {
