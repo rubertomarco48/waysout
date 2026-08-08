@@ -4,6 +4,38 @@ Questo repository usa **Vercel Services** (funzione in beta) per pubblicare
 frontend e backend come un unico progetto Vercel, sotto lo stesso dominio.
 La configurazione è in `vercel.json` alla radice.
 
+## ⚠️ Prima di tutto: rimuovi i file .env dal repository
+
+Il repository era privo di `.gitignore`, quindi `frontend/.env` e
+`backend/.env` sono finiti nella cronologia Git — incluse la vera stringa
+di connessione MongoDB e la vera chiave RapidAPI dentro `backend/.env`.
+Questo è il motivo per cui il sito in produzione chiamava
+`localhost:3001`: Vite legge `.env` anche in build di produzione se lo
+trova, quindi il valore locale sovrascriveva tutto.
+
+Segui questi passaggi, in ordine:
+
+1. **Cambia subito le credenziali esposte** — anche dopo averle tolte da
+   Git, chiunque abbia visto il repository (specie se pubblico) le ha
+   già viste. Rimuoverle dal codice non le invalida:
+   - MongoDB Atlas → cambia la password dell'utente del database (o crea
+     un nuovo utente ed elimina il vecchio)
+   - RapidAPI → dashboard Sky-scrapper → rigenera la API key
+2. Rimuovi i file dal tracking Git (restano sul disco, solo non più
+   versionati):
+   ```bash
+   git rm --cached frontend/.env backend/.env
+   git add .gitignore frontend/.env.example
+   git commit -m "rimuove .env dal repo, aggiunge .gitignore"
+   git push
+   ```
+3. Da questo momento, i file `.env` restano **solo in locale** e non
+   vengono mai committati (il nuovo `.gitignore` li esclude
+   automaticamente)
+4. Inserisci le credenziali **nuove** (dopo averle rigenerate) sia nel
+   tuo `backend/.env` locale sia nelle Environment Variables del
+   progetto Vercel (vedi sezione sotto)
+
 ## Passaggio obbligatorio nel pannello Vercel
 
 `vercel.json` da solo non basta: bisogna anche impostare il **Framework
