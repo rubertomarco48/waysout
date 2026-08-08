@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { buildAviasalesBookingLink } from "../lib/affiliate.js";
 
 function fmtDateLong(iso) {
   const d = new Date(iso + "T00:00:00");
@@ -66,6 +67,7 @@ export default function TripDetailModal({ trip, onClose }) {
 
   if (!trip) return null;
   const fd = trip.flight_details;
+  const bookingLink = buildAviasalesBookingLink(trip);
 
   return (
     <div
@@ -160,9 +162,32 @@ export default function TripDetailModal({ trip, onClose }) {
               </div>
             </div>
             <p className="mt-2 text-[10px] uppercase tracking-wide text-mist-400">
-              {trip.price_source === "stima" ? "prezzo stimato" : `fonte: ${trip.price_source}`}
+              {trip.price_source === "stima"
+                ? "prezzo stimato"
+                : trip.price_source === "travelpayouts"
+                  ? "prezzo reale osservato di recente — confermato su Aviasales"
+                  : `fonte: ${trip.price_source}`}
             </p>
           </div>
+
+          {/* Prenotazione (link affiliato) */}
+          {bookingLink && (
+            <a
+              href={bookingLink}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              className="flex items-center justify-center gap-2 w-full rounded-lg bg-amber-500 hover:bg-amber-400 text-night-950 font-semibold text-sm px-4 py-3 font-display transition-colors"
+            >
+              Cerca voli per {trip.city}
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M12.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 9H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" />
+              </svg>
+            </a>
+          )}
+          <p className="text-[10px] text-mist-400 text-center -mt-3">
+            Ti porta su Aviasales per completare l'acquisto — prezzo finale e disponibilità si
+            confermano lì
+          </p>
         </div>
       </div>
     </div>

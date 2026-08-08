@@ -10,6 +10,7 @@ import "dotenv/config";
 import axios from "axios";
 import { skyscrapper } from "./src/providers/skyscrapper.js";
 import { amadeus } from "./src/providers/amadeus.js";
+import { travelpayouts } from "./src/providers/travelpayouts.js";
 
 const routes = [
   ["MXP", "BCN"], // Milano -> Barcellona, rotta molto trafficata
@@ -21,6 +22,7 @@ const retDate = "2026-09-18";
 
 console.log("Sky-scrapper configurato:", skyscrapper.configured);
 console.log("Amadeus configurato:", amadeus.configured);
+console.log("Travelpayouts configurato:", travelpayouts.configured);
 console.log("---");
 
 // Chiamata "grezza" a Sky-scrapper, senza passare dal provider, per vedere
@@ -77,6 +79,15 @@ for (const [origin, dest] of routes) {
       console.log("Amadeus:", r ? JSON.stringify(r, null, 2) : "null (nessuna offerta trovata)");
     } catch (e) {
       console.log("Amadeus ERRORE:", e.message);
+    }
+  }
+
+  if (travelpayouts.configured) {
+    try {
+      const r = await travelpayouts.cheapestOffer(origin, dest, depDate, retDate);
+      console.log("Travelpayouts:", r ? JSON.stringify(r, null, 2) : "null (nessuna offerta trovata)");
+    } catch (e) {
+      console.log("Travelpayouts ERRORE:", e.message);
     }
   }
 }

@@ -54,8 +54,14 @@ di `backend/.env.example`):
 
 - `MONGO_URL`
 - `DB_NAME`
-- `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` (opzionali, se configurati)
-- `RAPIDAPI_SKYSCRAPPER_KEY` / `RAPIDAPI_SKYSCRAPPER_HOST` (opzionali)
+- `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` (il portale self-service di
+  Amadeus è stato chiuso il 17 luglio 2026 — non più utilizzabile, lasciare
+  vuoto)
+- `RAPIDAPI_SKYSCRAPPER_KEY` / `RAPIDAPI_SKYSCRAPPER_HOST` (opzionali, si è
+  dimostrato inaffidabile nei test — l'app funziona bene anche senza)
+- `TRAVELPAYOUTS_TOKEN` — token dalla dashboard Travelpayouts (programma
+  Aviasales → Tools → API), è il provider di prezzi reali attualmente
+  raccomandato
 - `CORS_ORIGINS` → puoi lasciare `*`, ma nota che in produzione con
   Services frontend e backend condividono lo stesso dominio: le chiamate
   dal frontend a `/api/...` sono same-origin, quindi CORS non entra

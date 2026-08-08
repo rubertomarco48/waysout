@@ -1,5 +1,6 @@
 import { amadeus } from "./amadeus.js";
 import { skyscrapper } from "./skyscrapper.js";
+import { travelpayouts } from "./travelpayouts.js";
 
 // ---------------------------------------------------------------------------
 // PROVIDER REGISTRY
@@ -24,6 +25,7 @@ import { skyscrapper } from "./skyscrapper.js";
 const PROVIDERS = [
   amadeus,
   skyscrapper,
+  travelpayouts,
   // kiwi,        // <- future: import { kiwi } from "./kiwi.js"
 ];
 
