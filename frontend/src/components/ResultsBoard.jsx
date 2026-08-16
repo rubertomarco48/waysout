@@ -16,7 +16,7 @@ export default function ResultsBoard({ results, loading, error, hasSearched }) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="aspect-[4/5] rounded-2xl border border-night-700 bg-night-800/30 animate-pulse" />
         ))}
@@ -44,7 +44,7 @@ export default function ResultsBoard({ results, loading, error, hasSearched }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {results.map((trip, i) => (
           <ResultCard
             key={`${trip.origin_code}-${trip.dest_code}`}
