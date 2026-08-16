@@ -90,7 +90,24 @@ export async function searchTrips(req) {
     Promise.all(
       top.map(async (r) => {
         const offer = await getCheapestOffer(r.origin_code, r.dest_code, r.departure_date, r.return_date);
-        if (!offer) return;
+if (!offer) return;
+
+// Sanity check: a real provider price that's wildly off from our
+// distance-based estimate is more likely a bug (wrong currency,
+// wrong unit, misparsed field) than a genuinely bizarre fare. We
+// saw this happen for real (Travelpayouts returning RUB when EUR
+// wasn't explicitly requested, inflating prices ~100x). Discard
+// and keep the fallback estimate rather than show/propagate a
+// broken number - log it so it's visible instead of silent.
+const ratio = offer.price / Math.max(r.flight_price, 1);
+if (ratio > 6 || ratio < 0.15) {
+  console.warn(
+    `Suspicious price from ${offer.source} for ${r.origin_code}->${r.dest_code}: ` +
+      `${offer.price} vs estimate ${r.flight_price} (ratio ${ratio.toFixed(1)}x) - discarded`
+      );
+       return;
+      }
+
         r.flight_price = Math.round(offer.price);
         r.departure_date = offer.departureDate;
         r.return_date = offer.returnDate;

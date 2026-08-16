@@ -26,11 +26,12 @@ export const travelpayouts = {
       const { data, status } = await axios.get("https://api.travelpayouts.com/v1/prices/cheap", {
         headers: { "x-access-token": token },
         params: {
-          origin,
-          destination: dest,
-          depart_date: depDate,
-          return_date: retDate,
-        },
+                  origin,
+                  destination: dest,
+                  depart_date: depDate,
+                  return_date: retDate,
+                  currency: "eur",
+                },
         timeout: 10000,
         validateStatus: () => true,
       });
