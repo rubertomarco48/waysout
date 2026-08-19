@@ -34,28 +34,40 @@ export function configuredProviders() {
 }
 
 // Queries all configured providers concurrently and returns the cheapest
-// valid offer. Returns null if none are configured or none returned a price.
+// valid offer, plus telemetry about which providers were tried/failed (used
+// for search analytics - see db.js logSearch). A provider "failing" means
+// it returned null or threw (timeout, 401/403/429, malformed JSON, empty
+// response) - none of that fails the overall search, callers just get a
+// slightly smaller `valid` set to pick the cheapest from.
+//
 // The returned offer, when present, carries { price, departureDate,
 // returnDate, source, details } - "details" (airline/times/stops) may be
 // null if the provider couldn't extract it, callers must handle that.
 export async function getCheapestOffer(origin, dest, depDate, retDate) {
   const active = configuredProviders();
-  if (!active.length) return null;
+  if (!active.length) return { offer: null, tried: [], failed: [] };
+
+  const tried = active.map((p) => p.name);
+  const failed = [];
 
   const offers = await Promise.all(
     active.map(async (p) => {
       try {
         const offer = await p.cheapestOffer(origin, dest, depDate, retDate);
-        return offer ? { ...offer, source: p.name } : null;
+        if (!offer) {
+          failed.push(p.name);
+          return null;
+        }
+        return { ...offer, source: p.name };
       } catch (e) {
         console.warn(`Provider ${p.name} threw: ${e.message}`);
+        failed.push(p.name);
         return null;
       }
     })
   );
 
   const valid = offers.filter(Boolean);
-  if (!valid.length) return null;
-
-  return valid.reduce((a, b) => (a.price <= b.price ? a : b));
+  const offer = valid.length ? valid.reduce((a, b) => (a.price <= b.price ? a : b)) : null;
+  return { offer, tried, failed };
 }
