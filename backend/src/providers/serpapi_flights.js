@@ -32,7 +32,7 @@ import axios from "axios";
 // separare andata/ritorno in `splitLegs()`.
 // ---------------------------------------------------------------------------
 
-const ENDPOINT = "https://serpapi.com/search";
+const ENDPOINT = "https://serpapi.com/search?engine=google";
 
 // Nella risposta di Google Flights per un round trip, `flights` contiene
 // TUTTI i segmenti del viaggio (andata + ritorno) in un unico array. Li
