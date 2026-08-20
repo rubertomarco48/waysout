@@ -97,4 +97,7 @@ export const PROVIDER_PRICE_TYPE = Object.freeze({
   amadeus: PRICE_TYPE.VERIFIED,
   skyscrapper: PRICE_TYPE.VERIFIED,
   travelpayouts: PRICE_TYPE.CACHED,
+  kiwi: PRICE_TYPE.VERIFIED, // Tequila API = ricerca live, non cache
+  ryanair: PRICE_TYPE.VERIFIED, // fare finder ufficiale ryanair.com
+  "serpapi-google-flights": PRICE_TYPE.VERIFIED, // risultati Google Flights live via SerpApi
 });

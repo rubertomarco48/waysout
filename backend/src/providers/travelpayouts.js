@@ -23,13 +23,28 @@ export const travelpayouts = {
     if (!token) return null;
 
     try {
+      // NOTA IMPORTANTE: /v1/prices/cheap è una cache di prezzi già
+      // osservati da ricerche reali su Aviasales, non una ricerca live.
+      // Passare un giorno esatto (yyyy-mm-dd) su rotte regionali poco
+      // popolari spesso non trova NESSUN dato in cache per quello
+      // specifico giorno (anche se la rotta in generale ha dati),
+      // risultando in "success:true, data: {}" e quindi sempre stima.
+      // Usando la granularità mese (yyyy-mm, supportata dall'API) si
+      // recupera il prezzo più basso trovato in cache in tutto il mese,
+      // aumentando molto il tasso di successo - accettabile perché il
+      // risultato è comunque taggato "cached", non "verified": il codice
+      // usa già la data reale (`departure_at`) restituita dalla risposta,
+      // non quella richiesta.
+      const departMonth = depDate.slice(0, 7);
+      const returnMonth = retDate.slice(0, 7);
+
       const { data, status } = await axios.get("https://api.travelpayouts.com/v1/prices/cheap", {
         headers: { "x-access-token": token },
         params: {
                   origin,
                   destination: dest,
-                  depart_date: depDate,
-                  return_date: retDate,
+                  depart_date: departMonth,
+                  return_date: returnMonth,
                   currency: "eur",
                 },
         timeout: 10000,
@@ -44,7 +59,10 @@ export const travelpayouts = {
       // La risposta è raggruppata per destinazione e poi per numero di
       // scali: { data: { [dest]: { "0": {...diretto}, "1": {...1 scalo} } } }
       const byStops = data?.data?.[dest];
-      if (!byStops) return null;
+      if (!byStops) {
+        console.warn(`Travelpayouts ${origin}->${dest} ${departMonth}: nessun prezzo in cache per questo mese`);
+        return null;
+      }
 
       const entries = Object.entries(byStops); // [["0", {...}], ["1", {...}]]
       if (!entries.length) return null;

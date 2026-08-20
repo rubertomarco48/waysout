@@ -109,7 +109,7 @@ export default function App() {
       </main>
 
       <footer className="max-w-5xl mx-auto px-6 pb-10 text-center text-xs text-mist-400 font-mono">
-        <p>WaysOut — dati voli forniti da Amadeus e Sky-scrapper</p>
+        <p>WaysOut — dati voli forniti da Amadeus, Sky-scrapper e Travelpayouts, con stime locali quando non disponibili</p>
         <div className="mt-3 flex items-center justify-center gap-4">
           <button
             type="button"

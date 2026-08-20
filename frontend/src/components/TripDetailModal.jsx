@@ -26,6 +26,26 @@ function stopsLabel(stops) {
   return stops === 1 ? "1 scalo" : `${stops} scali`;
 }
 
+const PRICE_BADGES = {
+  verified: { label: "Verificato", icon: "✓", className: "text-savings border-savings/40" },
+  cached: { label: "Cached", icon: "↻", className: "text-amber-400 border-amber-600/40" },
+  estimated: { label: "Stimato", icon: "≈", className: "text-mist-300 border-white/20" },
+  unavailable: { label: "Non disponibile", icon: "?", className: "text-mist-400 border-white/10" },
+};
+
+function relativeTime(iso) {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(diffMs) || diffMs < 0) return null;
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "proprio ora";
+  if (mins < 60) return `${mins} min fa`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h fa`;
+  const days = Math.round(hours / 24);
+  return `${days}g fa`;
+}
+
 function LegRow({ title, leg }) {
   if (!leg) return null;
   const dep = fmtTime(leg.departureTime);
@@ -161,12 +181,20 @@ export default function TripDetailModal({ trip, onClose }) {
                 <span className="font-mono font-semibold text-amber-400">€{trip.total_cost}</span>
               </div>
             </div>
-            <p className="mt-2 text-[10px] uppercase tracking-wide text-mist-400">
-              {trip.price_source === "stima"
-                ? "prezzo stimato"
-                : trip.price_source === "travelpayouts"
-                  ? "prezzo reale osservato di recente — confermato su Aviasales"
-                  : `fonte: ${trip.price_source}`}
+            <p className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-wide text-mist-400">
+              {(() => {
+                const badge = PRICE_BADGES[trip.price_type] ?? PRICE_BADGES.estimated;
+                const rel = relativeTime(trip.price_checked_at);
+                return (
+                  <>
+                    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono normal-case ${badge.className}`}>
+                      {badge.icon} {badge.label}
+                    </span>
+                    {rel && <span>verificato {rel}</span>}
+                    {trip.price_type === "estimated" && <span>prezzo stimato dalla distanza — non ancora confermato da un fornitore</span>}
+                  </>
+                );
+              })()}
             </p>
           </div>
 

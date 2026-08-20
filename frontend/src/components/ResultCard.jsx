@@ -3,6 +3,24 @@ function fmtDate(iso) {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
 }
 
+const PRICE_BADGES = {
+  verified: { label: "Verificato", icon: "✓", className: "text-savings border-savings/40 bg-night-950/60" },
+  cached: { label: "Cached", icon: "↻", className: "text-amber-400 border-amber-600/40 bg-night-950/60" },
+  estimated: { label: "Stimato", icon: "≈", className: "text-mist-300 border-white/20 bg-night-950/60" },
+  unavailable: { label: "N/D", icon: "?", className: "text-mist-400 border-white/10 bg-night-950/60" },
+};
+
+function PriceBadge({ priceType }) {
+  const badge = PRICE_BADGES[priceType] ?? PRICE_BADGES.estimated;
+  return (
+    <span
+      className={`absolute top-3 left-3 rounded-full border text-[10px] font-mono font-semibold px-2 py-1 backdrop-blur-sm ${badge.className}`}
+    >
+      {badge.icon} {badge.label}
+    </span>
+  );
+}
+
 export default function ResultCard({ trip, index, onOpen }) {
   return (
     <button
@@ -22,6 +40,8 @@ export default function ResultCard({ trip, index, onOpen }) {
       )}
       {/* Gradient scrim for text legibility */}
       <div className="absolute inset-0 bg-gradient-to-t from-night-950 via-night-950/45 to-night-950/5" />
+
+      <PriceBadge priceType={trip.price_type} />
 
       {/* Savings badge */}
       {trip.savings > 0 && (
