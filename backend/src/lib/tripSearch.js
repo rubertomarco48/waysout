@@ -57,24 +57,55 @@ export async function searchTrips(req) {
 
   const pool = buildOriginPool(origin, AIRPORTS, req.nearby_radius_km);
 
+  // Finestra di ricerca EFFETTIVA in base alla modalità scelta dall'utente -
+  // calcolata qui, PRIMA dello sweep, così sia lo sweep (Travelpayouts
+  // aggregato) sia la verifica sui provider live rispettano lo stesso
+  // vincolo: range esplicito se "range", finestra piena 90gg altrimenti.
+  let verifyContext;
+  {
+    let wf;
+    let wt;
+    if (req.date_mode === "range" && req.date_from && req.date_to) {
+      wf = req.date_from < isoDate(today) ? isoDate(addDaysUtc(today, 1)) : req.date_from;
+      wt = req.date_to;
+    } else {
+      wf = isoDate(addDaysUtc(today, MIN_DEPARTURE_DAYS_AHEAD));
+      wt = isoDate(addDaysUtc(today, MAX_SEARCH_DAYS));
+    }
+    verifyContext = {
+      windowFrom: wf,
+      windowTo: wt,
+      minDuration: req.date_mode === "weekend" ? 2 : 1,
+      maxDuration: req.max_days,
+      // Modalita' weekend: partenza di venerdi' come promesso dal toggle
+      requireDepartureWeekday: req.date_mode === "weekend" ? 5 : null,
+    };
+  }
+
   // --- SWEEP REALE (Travelpayouts aggregato) ------------------------------
   // Una chiamata per (origine, mese) restituisce TUTTE le destinazioni con
   // prezzi osservati reali: e' questa la fonte primaria dei candidati. La
   // stima chilometrica resta come rete di sicurezza per le rotte che lo
   // sweep non copre.
+  //
+  // BUG RISOLTO: prima i mesi da interrogare venivano calcolati SEMPRE
+  // sull'intera finestra di 90 giorni, ignorando "range"/"weekend" - per
+  // questo in modalità "Range di date" (es. 22-27 ago) uscivano risultati
+  // con date di settembre/novembre: lo sweep li trovava in quei mesi e li
+  // applicava comunque, sovrascrivendo le date corrette calcolate in
+  // DISCOVERY. Ora i mesi sweepati sono derivati dalla stessa finestra
+  // (verifyContext.windowFrom/windowTo) usata per la verifica sui provider,
+  // e ogni offerta sweep viene scartata se cade fuori da quella finestra
+  // (vedi filtro più sotto, sezione "APPLICAZIONE OFFERTE REALI").
   const monthKeys = [];
   {
-    const minDep = new Date(today);
-    minDep.setUTCDate(minDep.getUTCDate() + MIN_DEPARTURE_DAYS_AHEAD);
-    const last = new Date(today);
-    last.setUTCDate(last.getUTCDate() + MAX_SEARCH_DAYS);
+    const windowFromDate = new Date(verifyContext.windowFrom + "T00:00:00Z");
+    const windowToDate = new Date(verifyContext.windowTo + "T00:00:00Z");
     for (
-      let d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-      d <= last;
+      let d = new Date(Date.UTC(windowFromDate.getUTCFullYear(), windowFromDate.getUTCMonth(), 1));
+      d <= windowToDate;
       d.setUTCMonth(d.getUTCMonth() + 1)
     ) {
-      const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
-      if (monthEnd < minDep) continue;
       monthKeys.push(d.toISOString().slice(0, 7));
     }
   }
@@ -134,6 +165,14 @@ export async function searchTrips(req) {
     // Sweep: nessuna tolleranza sulla durata - le alternative sono tante,
     // inutile proporre viaggi piu' lunghi dei giorni disponibili.
     if (days > req.max_days) continue;
+    // FIX: un'offerta sweep con data fuori dalla finestra richiesta
+    // dall'utente (range esplicito o vincolo weekend) va scartata - è
+    // esattamente questo controllo che mancava e causava le date di
+    // settembre/novembre quando l'utente aveva scelto un range di agosto.
+    if (off.departureDate < verifyContext.windowFrom || off.returnDate > verifyContext.windowTo) continue;
+    if (verifyContext.requireDepartureWeekday != null && dd.getUTCDay() !== verifyContext.requireDepartureWeekday) {
+      continue;
+    }
     // Non proporre come "destinazione" un aeroporto del proprio raggio
     // di partenza (es. Brindisi quando cerchi da Bari).
     if (pool.some((p) => p.code === destCode)) continue;
@@ -195,29 +234,10 @@ export async function searchTrips(req) {
   const providersFailed = new Set();
   let cacheHits = 0;
 
-  // Finestra di ricerca UTENTE passata ai provider live: Ryanair puo' cosi'
-  // cercare il vero minimo su TUTTI i mesi della finestra (o del range
-  // scelto), invece di fermarsi a +/-3 giorni da una data casuale.
-  let verifyContext;
-  {
-    let wf;
-    let wt;
-    if (req.date_mode === "range" && req.date_from && req.date_to) {
-      wf = req.date_from < isoDate(today) ? isoDate(addDaysUtc(today, 1)) : req.date_from;
-      wt = req.date_to;
-    } else {
-      wf = isoDate(addDaysUtc(today, MIN_DEPARTURE_DAYS_AHEAD));
-      wt = isoDate(addDaysUtc(today, MAX_SEARCH_DAYS));
-    }
-    verifyContext = {
-      windowFrom: wf,
-      windowTo: wt,
-      minDuration: req.date_mode === "weekend" ? 2 : 1,
-      maxDuration: req.max_days,
-      // Modalita' weekend: partenza di venerdi' come promesso dal toggle
-      requireDepartureWeekday: req.date_mode === "weekend" ? 5 : null,
-    };
-  }
+  // verifyContext (finestra date, durata, vincolo weekday) è già stato
+  // calcolato in cima alla funzione, prima dello sweep - riusato qui tale
+  // e quale per i provider live, così sweep e verifica live rispettano
+  // sempre la stessa finestra richiesta dall'utente.
 
   await Promise.race([
     Promise.all(
