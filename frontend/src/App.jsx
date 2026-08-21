@@ -25,7 +25,16 @@ export default function App() {
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
-    getAirports().then(setPopularAirports).catch(() => setPopularAirports([]));
+    // DEBUG TEMPORANEO: log dell'errore invece di ingoiarlo
+    getAirports()
+      .then((a) => {
+        console.log("[waysout-debug] /airports ok:", a.length, "aeroporti popolari");
+        setPopularAirports(a);
+      })
+      .catch(() => {
+        console.error("[waysout-debug] getAirports fallita al mount (vedi log sopra)");
+        setPopularAirports([]);
+      });
   }, []);
 
   async function handleSearch() {
@@ -49,6 +58,8 @@ export default function App() {
       });
       setResults(data);
     } catch (e) {
+      // DEBUG TEMPORANEO
+      console.error("[waysout-debug] searchTrips fallita:", e);
       setError(e.message);
       setResults([]);
     } finally {
