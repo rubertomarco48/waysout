@@ -1,6 +1,6 @@
 import { AIRPORTS } from "../data/airports.js";
 import { countryIt, resolveAirlineName } from "./tripLogic.js";
-import { buildOriginPool, buildDestinationCandidate } from "./candidateGeneration.js";
+import { buildOriginPool, buildDestinationCandidate, isoDate } from "./candidateGeneration.js";
 import { passesPreliminaryBudget, computeValueScore, sortByValue } from "./ranking.js";
 import { estimatedPriceInfo, offerPriceInfo, isSuspiciousPrice } from "./priceConfidence.js";
 import { cacheKey, cacheGet, cacheSet } from "./cache.js";
@@ -21,6 +21,12 @@ import {
 
 function findAirport(code) {
   return AIRPORTS.find((a) => a.code === code) ?? null;
+}
+
+function addDaysUtc(d, days) {
+  const out = new Date(d);
+  out.setUTCDate(out.getUTCDate() + days);
+  return out;
 }
 
 // -----------------------------------------------------------------------
@@ -189,6 +195,30 @@ export async function searchTrips(req) {
   const providersFailed = new Set();
   let cacheHits = 0;
 
+  // Finestra di ricerca UTENTE passata ai provider live: Ryanair puo' cosi'
+  // cercare il vero minimo su TUTTI i mesi della finestra (o del range
+  // scelto), invece di fermarsi a +/-3 giorni da una data casuale.
+  let verifyContext;
+  {
+    let wf;
+    let wt;
+    if (req.date_mode === "range" && req.date_from && req.date_to) {
+      wf = req.date_from < isoDate(today) ? isoDate(addDaysUtc(today, 1)) : req.date_from;
+      wt = req.date_to;
+    } else {
+      wf = isoDate(addDaysUtc(today, MIN_DEPARTURE_DAYS_AHEAD));
+      wt = isoDate(addDaysUtc(today, MAX_SEARCH_DAYS));
+    }
+    verifyContext = {
+      windowFrom: wf,
+      windowTo: wt,
+      minDuration: req.date_mode === "weekend" ? 2 : 1,
+      maxDuration: req.max_days,
+      // Modalita' weekend: partenza di venerdi' come promesso dal toggle
+      requireDepartureWeekday: req.date_mode === "weekend" ? 5 : null,
+    };
+  }
+
   await Promise.race([
     Promise.all(
       toVerify.map(async (r) => {
@@ -208,7 +238,7 @@ export async function searchTrips(req) {
           return;
         }
 
-        const { offer, tried, failed } = await getCheapestOffer(r.origin_code, r.dest_code, r.departure_date, r.return_date);
+        const { offer, tried, failed } = await getCheapestOffer(r.origin_code, r.dest_code, r.departure_date, r.return_date, verifyContext);
         tried.forEach((p) => providersTried.add(p));
         failed.forEach((p) => providersFailed.add(p));
         if (!offer) return;

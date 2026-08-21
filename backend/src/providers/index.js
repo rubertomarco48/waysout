@@ -59,7 +59,12 @@ export function configuredProviders() {
 // The returned offer, when present, carries { price, departureDate,
 // returnDate, source, details } - "details" (airline/times/stops) may be
 // null if the provider couldn't extract it, callers must handle that.
-export async function getCheapestOffer(origin, dest, depDate, retDate) {
+//
+// `context` (opzionale): { windowFrom, windowTo, minDuration, maxDuration,
+// requireDepartureWeekday } - la finestra UTENTE entro cui un provider puo'
+// cercare. I provider che la supportano (ryanair) la usano per trovare il
+// vero minimo su tutti i mesi; gli altri la ignorano.
+export async function getCheapestOffer(origin, dest, depDate, retDate, context = {}) {
   const active = configuredProviders();
   if (!active.length) return { offer: null, tried: [], failed: [] };
 
@@ -69,7 +74,7 @@ export async function getCheapestOffer(origin, dest, depDate, retDate) {
   const offers = await Promise.all(
     active.map(async (p) => {
       try {
-        const offer = await p.cheapestOffer(origin, dest, depDate, retDate);
+        const offer = await p.cheapestOffer(origin, dest, depDate, retDate, context);
         if (!offer) {
           failed.push(p.name);
           return null;
