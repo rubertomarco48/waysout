@@ -125,8 +125,8 @@ export const ryanair = {
       }
 
       // Andata entro +/-3 giorni dalla data candidata, ritorno coerente
-      // con la durata richiesta (dur-2 .. dur+3 dalla partenza scelta):
-      // il risultato resta un viaggio della lunghezza chiesta dall'utente.
+      // con la durata richiesta (dur-2 .. dur dalla partenza scelta): il
+      // viaggio resta DENTRO i giorni chiesti dall'utente, mai oltre.
       const requestedDays = Math.max(
         1,
         Math.round((new Date(retDate + "T00:00:00Z") - new Date(depDate + "T00:00:00Z")) / 86400000)
@@ -143,9 +143,9 @@ export const ryanair = {
         data?.inbound,
         inboundMonth,
         // Almeno 1 giorno di distanza dall'andata: niente "round trip"
-        // con ritorno lo stesso giorno.
+        // con ritorno lo stesso giorno. Mai oltre la durata richiesta.
         shiftIso(outboundFare.date, Math.max(1, requestedDays - 2)),
-        shiftIso(outboundFare.date, requestedDays + 3)
+        shiftIso(outboundFare.date, requestedDays)
       );
 
       // Se non c'e' un ritorno coerente con la durata, l'offerta non viene

@@ -47,6 +47,12 @@ export const MAX_CANDIDATE_DESTINATIONS = envInt("MAX_CANDIDATE_DESTINATIONS", 8
 // ricerca (ogni destinazione verificata = 1 chiamata per provider attivo).
 export const MAX_VERIFIED_DESTINATIONS = envInt("MAX_VERIFIED_DESTINATIONS", 24);
 
+// Quanti aeroporti del pool di partenza interrogare nel SWEEP aggregato
+// Travelpayouts (una chiamata per origine per mese, dati gratuiti/cache).
+// Copre i principali scali nel raggio scelto dall'utente senza moltiplicare
+// le chiamate oltre misura.
+export const SWEEP_MAX_ORIGINS = envInt("SWEEP_MAX_ORIGINS", 6);
+
 // Tetto assoluto di chiamate provider per singola ricerca (destinazioni
 // verificate × provider attivi). Se superato, la verifica si ferma prima:
 // protegge da bollette API impreviste se in futuro venissero aggiunti più

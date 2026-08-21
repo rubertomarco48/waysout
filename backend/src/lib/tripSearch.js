@@ -5,6 +5,7 @@ import { passesPreliminaryBudget, computeValueScore, sortByValue } from "./ranki
 import { estimatedPriceInfo, offerPriceInfo, isSuspiciousPrice } from "./priceConfidence.js";
 import { cacheKey, cacheGet, cacheSet } from "./cache.js";
 import { getCheapestOffer } from "../providers/index.js";
+import { travelpayoutsSweep } from "../providers/travelpayouts.js";
 import { logSearch } from "./db.js";
 import {
   MAX_CANDIDATE_DESTINATIONS,
@@ -12,6 +13,9 @@ import {
   VERIFICATION_TIMEOUT_MS,
   CACHE_TTL_LIVE_MS,
   CACHE_TTL_CACHED_MS,
+  MIN_DEPARTURE_DAYS_AHEAD,
+  MAX_SEARCH_DAYS,
+  SWEEP_MAX_ORIGINS,
   PRICE_TYPE,
 } from "../config/constants.js";
 
@@ -47,10 +51,51 @@ export async function searchTrips(req) {
 
   const pool = buildOriginPool(origin, AIRPORTS, req.nearby_radius_km);
 
+  // --- SWEEP REALE (Travelpayouts aggregato) ------------------------------
+  // Una chiamata per (origine, mese) restituisce TUTTE le destinazioni con
+  // prezzi osservati reali: e' questa la fonte primaria dei candidati. La
+  // stima chilometrica resta come rete di sicurezza per le rotte che lo
+  // sweep non copre.
+  const monthKeys = [];
+  {
+    const minDep = new Date(today);
+    minDep.setUTCDate(minDep.getUTCDate() + MIN_DEPARTURE_DAYS_AHEAD);
+    const last = new Date(today);
+    last.setUTCDate(last.getUTCDate() + MAX_SEARCH_DAYS);
+    for (
+      let d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      d <= last;
+      d.setUTCMonth(d.getUTCMonth() + 1)
+    ) {
+      const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+      if (monthEnd < minDep) continue;
+      monthKeys.push(d.toISOString().slice(0, 7));
+    }
+  }
+
+  const sweepGroups = await Promise.all(
+    pool.slice(0, SWEEP_MAX_ORIGINS).flatMap((o) =>
+      monthKeys.map(async (m) => ({ originCode: o.code, offers: await travelpayoutsSweep(o.code, m) }))
+    )
+  );
+
+  // Per ogni rotta (origine:destinazione) tiene la migliore tra i mesi
+  const sweepByRoute = new Map();
+  for (const g of sweepGroups) {
+    for (const off of g.offers) {
+      if (!off?.destination || !off.departureDate || !off.returnDate) continue;
+      const key = `${g.originCode}:${off.destination}`;
+      const prev = sweepByRoute.get(key);
+      if (!prev || off.price < prev.price) sweepByRoute.set(key, off);
+    }
+  }
+
   // --- DISCOVERY: candidate destinations + candidate dates ---------------
   let candidates = [];
   for (const d of AIRPORTS) {
     if (d.code === origin.code) continue;
+    // Un aeroporto nel raggio di partenza non e' una "destinazione"
+    if (pool.some((p) => p.code === d.code)) continue;
     const candidate = buildDestinationCandidate(req, d, pool, today);
     if (!candidate) continue;
     if (!passesPreliminaryBudget(candidate.total_cost, req.budget)) continue;
@@ -62,6 +107,70 @@ export async function searchTrips(req) {
     });
   }
 
+  // --- APPLICAZIONE OFFERTE REALI DELLO SWEEP ----------------------------
+  // Le offerte sweep hanno prezzo/data VERO: entrano nei risultati anche se
+  // la stima locale le avrebbe scartate (era il buco per cui si vedevano
+  // poche destinazioni). Non passano dal sanity check: arrivono
+  // dall'endpoint aggregato ufficiale con currency=eur esplicito.
+  const sweptDestCodes = new Set();
+  for (const [key, off] of sweepByRoute) {
+    const sep = key.indexOf(":");
+    const originCode = key.slice(0, sep);
+    const destCode = key.slice(sep + 1);
+
+    const destAirport = AIRPORTS.find((a) => a.code === destCode);
+    if (!destAirport) continue;
+
+    const dd = new Date(off.departureDate + "T00:00:00Z");
+    const rd = new Date(off.returnDate + "T00:00:00Z");
+    if (Number.isNaN(dd.getTime()) || Number.isNaN(rd.getTime()) || rd <= dd) continue;
+    const days = Math.round((rd - dd) / 86400000);
+    // Sweep: nessuna tolleranza sulla durata - le alternative sono tante,
+    // inutile proporre viaggi piu' lunghi dei giorni disponibili.
+    if (days > req.max_days) continue;
+    // Non proporre come "destinazione" un aeroporto del proprio raggio
+    // di partenza (es. Brindisi quando cerchi da Bari).
+    if (pool.some((p) => p.code === destCode)) continue;
+
+    let cand =
+      candidates.find((c) => c.dest_code === destCode && c.origin_code === originCode) ??
+      candidates.find((c) => c.dest_code === destCode);
+    if (!cand) {
+      const built = buildDestinationCandidate(req, destAirport, pool, today);
+      if (!built) continue;
+      cand = {
+        ...built,
+        country: countryIt(built.country),
+        savings: Math.round(req.budget - built.total_cost),
+        ...estimatedPriceInfo(),
+      };
+      candidates.push(cand);
+    }
+
+    // Riorienta il candidato sull'origine reale dell'offerta sweep
+    if (cand.origin_code !== originCode) {
+      const ap = pool.find((p) => p.code === originCode);
+      if (ap) {
+        cand.origin_code = ap.code;
+        cand.origin_city = ap.city;
+        cand.origin_distance_km = ap.origin_distance_km;
+      }
+    }
+
+    applyOffer(
+      cand,
+      {
+        price: off.price,
+        departureDate: off.departureDate,
+        returnDate: off.returnDate,
+        details: off.details ?? null,
+        ...offerPriceInfo("travelpayouts"),
+      },
+      req
+    );
+    sweptDestCodes.add(destCode);
+  }
+
   // --- PRELIMINARY RANKING: cheapest-estimated first, cap payload --------
   candidates.sort((a, b) => a.total_cost - b.total_cost);
   candidates = candidates.slice(0, MAX_CANDIDATE_DESTINATIONS);
@@ -70,8 +179,12 @@ export async function searchTrips(req) {
   // Best-effort, concurrent, across ALL configured providers - bounded by
   // MAX_VERIFIED_DESTINATIONS so a 90-day search window never multiplies
   // API calls (each destination is checked against exactly one candidate
-  // date, the best one chosen during discovery).
-  const toVerify = candidates.slice(0, MAX_VERIFIED_DESTINATIONS);
+  // date, the best one chosen during discovery). Le destinazioni gia'
+  // prezzate dallo sweep reale saltano questa fase: non serve bruciare
+  // chiamate per un prezzo che abbiamo gia' vero.
+  const toVerify = candidates
+    .filter((r) => !sweptDestCodes.has(r.dest_code))
+    .slice(0, MAX_VERIFIED_DESTINATIONS);
   const providersTried = new Set();
   const providersFailed = new Set();
   let cacheHits = 0;
@@ -155,9 +268,10 @@ export async function searchTrips(req) {
   return results;
 }
 
-// Tolleranza sulla durata: un'offerta reale puo' discostarsi un po' dalla
-// data candidata richiesta, ma non stravolgerla.
-const DURATION_TOLERANCE_DAYS = 3;
+// Tolleranza sulla durata dell'offerta applicata: ZERO. L'utente ha detto
+// quanti giorni ha a disposizione: un viaggio piu' lungo non e' quello che
+// ha chiesto, anche se il prezzo e' buono.
+const DURATION_TOLERANCE_DAYS = 0;
 
 // Mutates a candidate result in place with a verified/cached offer: price,
 // dates, trip length, recomputed lodging/total/savings, and price

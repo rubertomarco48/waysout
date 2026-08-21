@@ -1,4 +1,6 @@
 import axios from "axios";
+import { cacheGet, cacheSet } from "../lib/cache.js";
+import { CACHE_TTL_CACHED_MS } from "../config/constants.js";
 
 // Provider "prices/cheap" di Travelpayouts (Aviasales Data API).
 //
@@ -16,9 +18,7 @@ export const travelpayouts = {
   name: "travelpayouts",
   get configured() {
     return Boolean(process.env.TRAVELPAYOUTS_TOKEN);
-  },
-
-  async cheapestOffer(origin, dest, depDate, retDate) {
+  },  async cheapestOffer(origin, dest, depDate, retDate) {
     const token = process.env.TRAVELPAYOUTS_TOKEN;
     if (!token) return null;
 
@@ -97,3 +97,80 @@ export const travelpayouts = {
     }
   },
 };
+
+// ---------------------------------------------------------------------------
+// SWEEP AGGREGATO: /v1/prices/cheap SENZA parametro "destination" restituisce
+// in UNA chiamata tutte le destinazioni servite dall'origine con il prezzo
+// osservato piu' basso (round trip, EUR), data di partenza/ritorno reale,
+// compagnia e durate. E' la fonte primaria della discovery in tripSearch.js:
+// decine di destinazioni REALI per ricerca invece delle stime chilometriche.
+//
+// Granularita' mensile via depart_date=yyyy-mm (stesso compromesso del
+// cheapestOffer per-route). Cache interna per (origina, mese): i dati sono
+// osservazioni, non ricerche live.
+// ---------------------------------------------------------------------------
+export async function travelpayoutsSweep(origin, month) {
+  const token = process.env.TRAVELPAYOUTS_TOKEN;
+  if (!token) return [];
+
+  const cacheK = `tp-sweep:${origin}:${month}`;
+  const cached = cacheGet(cacheK);
+  if (cached) return cached;
+
+  try {
+    const { data, status } = await axios.get("https://api.travelpayouts.com/v1/prices/cheap", {
+      headers: { "x-access-token": token },
+      params: { origin, depart_date: month, currency: "eur" },
+      timeout: 12000,
+      validateStatus: () => true,
+    });
+
+    if (status !== 200 || !data?.success || !data?.data) {
+      console.warn(`Travelpayouts sweep ${origin} ${month}: HTTP ${status}`);
+      return [];
+    }
+
+    const offers = [];
+    for (const [dest, byStops] of Object.entries(data.data)) {
+      if (!byStops || typeof byStops !== "object") continue;
+      let best = null;
+      for (const [stopsKey, v] of Object.entries(byStops)) {
+        if (!v || typeof v.price !== "number") continue;
+        if (!best || v.price < best.price) {
+          best = { price: v.price, stops: Number(stopsKey), raw: v };
+        }
+      }
+      const departureDate = best?.raw?.departure_at ? String(best.raw.departure_at).slice(0, 10) : null;
+      const returnDate = best?.raw?.return_at ? String(best.raw.return_at).slice(0, 10) : null;
+      if (!departureDate || !returnDate || !Number.isFinite(best.price)) continue;
+
+      offers.push({
+        destination: dest,
+        price: best.price,
+        departureDate,
+        returnDate,
+        details: {
+          airlineCode: best.raw.airline ?? null,
+          outbound: {
+            departureTime: best.raw.departure_at ?? null,
+            arrivalTime: null,
+            stops: best.stops,
+            durationMinutes: best.raw.duration_to ?? null,
+          },
+          inbound: {
+            departureTime: best.raw.return_at ?? null,
+            arrivalTime: null,
+            stops: best.stops,
+            durationMinutes: best.raw.duration_back ?? null,
+          },
+        },
+      });
+    }
+
+    cacheSet(cacheK, offers, CACHE_TTL_CACHED_MS);
+    return offers;
+  } catch (e) {
+    console.warn(`Travelpayouts sweep ${origin} ${month}: ${e.message}`);
+    return [];
+  }
+}
