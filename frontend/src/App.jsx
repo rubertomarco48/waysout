@@ -13,7 +13,7 @@ export default function App() {
     budget: 300,
     maxDays: 4,
     nearbyRadiusKm: 250,
-    includeLodging: true,
+    includeLodging: false,
     dateMode: "standard", // "standard" | "weekend" | "range"
     dateFrom: null,
     dateTo: null,

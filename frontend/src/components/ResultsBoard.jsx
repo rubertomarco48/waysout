@@ -52,7 +52,10 @@ export default function ResultsBoard({ results, loading, error, hasSearched }) {
     return (
       <div className="rounded-xl border border-night-600 bg-night-800/40 px-6 py-10 text-center">
         <p className="font-display text-lg text-mist-300 mb-1">Nessuna destinazione entro budget</p>
-        <p className="text-sm text-mist-400">Prova ad alzare il budget o allargare il raggio di partenza.</p>
+        <p className="text-sm text-mist-400">
+          Mostriamo solo prezzi reali confermati dai fornitori: con questo budget nessuna tratta è risultata
+          prenotabile. Prova ad alzare il budget o allargare il raggio di partenza.
+        </p>
       </div>
     );
   }

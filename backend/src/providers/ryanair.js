@@ -43,28 +43,44 @@ function toMonthParam(isoDate) {
   return `${isoDate.slice(0, 7)}-01`;
 }
 
-// La risposta osservata storicamente ha la forma:
-//   { outbound: { fares: [ { day, arrivalDate, price: { value, ... }, unavailable, soldOut }, ... ] },
-//     inbound:  { fares: [ ... ] } }
-// ma i nomi dei campi data (day vs arrivalDate vs departureDate) sono
-// cambiati in passato - questa funzione prova più varianti.
-function extractCheapestFare(leg, monthParam) {
-  const fares = leg?.fares;
-  if (!Array.isArray(fares) || !fares.length) return null;
+// Somma/giorni sottrae giorni a una data ISO yyyy-mm-dd (aritmetica UTC).
+function shiftIso(isoDate, days) {
+  const d = new Date(isoDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
-  const usable = fares.filter((f) => f && !f.unavailable && !f.soldOut && f.price?.value != null);
-  if (!usable.length) return null;
-
-  const cheapest = usable.reduce((a, b) => (a.price.value <= b.price.value ? a : b));
-
-  let date = cheapest.arrivalDate || cheapest.departureDate || cheapest.date || null;
-  if (!date && cheapest.day) {
+// Data ISO di una tariffa: i nomi dei campi sono cambiati in passato
+// (day vs arrivalDate vs departureDate), si provano piu' varianti.
+function fareDate(fare, monthParam) {
+  let date = fare.arrivalDate || fare.departureDate || fare.date || null;
+  if (!date && fare.day) {
     // Ricostruisce yyyy-mm-dd dal giorno del mese + il mese richiesto.
-    const day = String(cheapest.day).padStart(2, "0");
+    const day = String(fare.day).padStart(2, "0");
     date = `${monthParam.slice(0, 7)}-${day}`;
   }
+  return date ? String(date).slice(0, 10) : null;
+}
 
-  return { price: Number(cheapest.price.value), date: date ? date.slice(0, 10) : null };
+// Tariffa piu' economica la cui data cade nella finestra [fromIso..toIso].
+// Prendere il minimo del mese SENZA finestra produce coppie andata/ritorno
+// indipendenti anche a settimane di distanza (es. andata 8/9 ritorno 29/9):
+// non e' il viaggio che l'utente ha chiesto.
+function cheapestFareInWindow(leg, monthParam, fromIso, toIso) {
+  const fares = leg?.fares;
+  if (!Array.isArray(fares)) return null;
+
+  let best = null;
+  for (const f of fares) {
+    if (!f || f.unavailable || f.soldOut || f.price?.value == null) continue;
+    const date = fareDate(f, monthParam);
+    if (!date) continue;
+    if (fromIso && date < fromIso) continue;
+    if (toIso && date > toIso) continue;
+    const price = Number(f.price.value);
+    if (!best || price < best.price) best = { price, date };
+  }
+  return best;
 }
 
 export const ryanair = {
@@ -80,7 +96,14 @@ export const ryanair = {
 
     try {
       const { data, status } = await axios.get(`${BASE_URL}/${origin}/${dest}/cheapestPerDay`, {
-        params: { outboundMonthOfDate: outboundMonth, inboundMonthOfDate: inboundMonth },
+        params: {
+          outboundMonthOfDate: outboundMonth,
+          inboundMonthOfDate: inboundMonth,
+          // SENZA questo parametro l'endpoint risponde con la valuta del
+          // geo-IP del chiamante (es. GBP da IP UK/USA): prezzi ~17% sottostimati
+          // trattati come euro. Verificato dal vivo il 21/08/2026 su STN->DUB.
+          currency: "EUR",
+        },
         headers: {
           // Alcuni endpoint "semi-pubblici" come questo rifiutano richieste
           // senza uno User-Agent da browser - non verificato con certezza
@@ -101,18 +124,40 @@ export const ryanair = {
         return null;
       }
 
-      const outboundFare = extractCheapestFare(data?.outbound, outboundMonth);
-      const inboundFare = extractCheapestFare(data?.inbound, inboundMonth);
+      // Andata entro +/-3 giorni dalla data candidata, ritorno coerente
+      // con la durata richiesta (dur-2 .. dur+3 dalla partenza scelta):
+      // il risultato resta un viaggio della lunghezza chiesta dall'utente.
+      const requestedDays = Math.max(
+        1,
+        Math.round((new Date(retDate + "T00:00:00Z") - new Date(depDate + "T00:00:00Z")) / 86400000)
+      );
+      const outboundFare = cheapestFareInWindow(
+        data?.outbound,
+        outboundMonth,
+        shiftIso(depDate, -3),
+        shiftIso(depDate, 3)
+      );
       if (!outboundFare) return null;
 
-      // Sola andata se non troviamo un ritorno utilizzabile nel mese
-      // richiesto (es. rotta stagionale, o ritorno oltre fine mese).
-      const totalPrice = outboundFare.price + (inboundFare?.price ?? 0);
+      const inboundFare = cheapestFareInWindow(
+        data?.inbound,
+        inboundMonth,
+        // Almeno 1 giorno di distanza dall'andata: niente "round trip"
+        // con ritorno lo stesso giorno.
+        shiftIso(outboundFare.date, Math.max(1, requestedDays - 2)),
+        shiftIso(outboundFare.date, requestedDays + 3)
+      );
+
+      // Se non c'e' un ritorno coerente con la durata, l'offerta non viene
+      // proposta per niente (niente "sola andata" travestita da round trip).
+      if (!inboundFare) return null;
+
+      const totalPrice = outboundFare.price + inboundFare.price;
 
       return {
         price: totalPrice,
-        departureDate: outboundFare.date ?? depDate,
-        returnDate: inboundFare?.date ?? retDate,
+        departureDate: outboundFare.date,
+        returnDate: inboundFare.date,
         details: {
           airlineCode: "FR",
           outbound: {

@@ -91,7 +91,7 @@ export async function searchTrips(req) {
         const cached = cacheGet(key);
         if (cached) {
           cacheHits += 1;
-          applyOffer(r, cached, req);
+          if (applyOffer(r, cached, req) === false) return;
           return;
         }
 
@@ -100,28 +100,41 @@ export async function searchTrips(req) {
         failed.forEach((p) => providersFailed.add(p));
         if (!offer) return;
 
-        if (isSuspiciousPrice(offer.price, r.flight_price)) {
+        const priceInfo = offerPriceInfo(offer.source);
+
+        // Sanity check SOLO per i dati di terzi in cache (l'incidente
+        // RUB/EUR era di Travelpayouts): una ricerca LIVE (SerpApi, Ryanair)
+        // e' la verita' di mercato - se dice 360 EUR, sono 360 EUR, anche
+        // quando la stima locale non c'entra. Scartarla significa mostrare
+        // prezzi finti al posto di quelli veri.
+        if (
+          priceInfo.price_type === PRICE_TYPE.CACHED &&
+          isSuspiciousPrice(offer.price, r.flight_price)
+        ) {
           console.warn(
-            `Suspicious price from ${offer.source} for ${r.origin_code}->${r.dest_code}: ` +
+            `Suspicious cached price from ${offer.source} for ${r.origin_code}->${r.dest_code}: ` +
               `${offer.price} vs estimate ${r.flight_price} - discarded`
           );
           return;
         }
-
-        const priceInfo = offerPriceInfo(offer.source);
         const ttl = priceInfo.price_type === PRICE_TYPE.VERIFIED ? CACHE_TTL_LIVE_MS : CACHE_TTL_CACHED_MS;
         const cacheable = { ...offer, ...priceInfo };
+        if (applyOffer(r, cacheable, req) === false) return;
         cacheSet(key, cacheable, ttl);
-        applyOffer(r, cacheable, req);
       })
     ),
     new Promise((resolve) => setTimeout(resolve, VERIFICATION_TIMEOUT_MS)),
   ]);
 
-  // --- FINAL: hard budget cutoff (we can't show what the user can't
-  // actually afford, even if it was worth checking on the strength of a
-  // pessimistic estimate), value score, final ranking -----------------
-  let results = candidates.filter((r) => r.total_cost <= req.budget);
+  // --- FINAL: hard budget cutoff + SOLO PREZZI REALI --------------------
+  // Un risultato senza conferma da almeno un provider viene escluso: il
+  // tabellone deve dire quanto si paga davvero, non quanto la stima
+  // spera. Meglio poche destinazioni vere che tante stime inventate.
+  let results = candidates.filter(
+    (r) =>
+      r.total_cost <= req.budget &&
+      (r.price_type === PRICE_TYPE.VERIFIED || r.price_type === PRICE_TYPE.CACHED)
+  );
   results = results.map((r) => ({ ...r, value_score: computeValueScore(r, req.budget) }));
   results = sortByValue(results);
 
@@ -142,18 +155,35 @@ export async function searchTrips(req) {
   return results;
 }
 
+// Tolleranza sulla durata: un'offerta reale puo' discostarsi un po' dalla
+// data candidata richiesta, ma non stravolgerla.
+const DURATION_TOLERANCE_DAYS = 3;
+
 // Mutates a candidate result in place with a verified/cached offer: price,
 // dates, trip length, recomputed lodging/total/savings, and price
 // confidence fields. Shared by the cache-hit and fresh-provider-response
-// paths so the two stay in sync.
+// paths so the two stay in sync. Returns false se l'offerta viola i vincoli
+// (durata oltre tolleranza) e quindi NON va applicata.
 function applyOffer(r, offer, req) {
+  const dd = new Date(offer.departureDate + "T00:00:00Z");
+  const rd = new Date(offer.returnDate + "T00:00:00Z");
+  const days =
+    !Number.isNaN(dd.getTime()) && !Number.isNaN(rd.getTime()) && rd > dd
+      ? Math.round((rd - dd) / 86400000)
+      : null;
+
+  // Offerte reali ma incoerenti con la richiesta (es. min indipendenti di
+  // andata/ritorno a settimane di distanza): non e' il viaggio chiesto,
+  // anche se il prezzo e' buono. La destinazione resta fuori dal tabellone.
+  if (days != null && days > req.max_days + DURATION_TOLERANCE_DAYS) {
+    return false;
+  }
+
   r.flight_price = Math.round(offer.price);
   r.departure_date = offer.departureDate;
   r.return_date = offer.returnDate;
   try {
-    const dd = new Date(r.departure_date + "T00:00:00Z");
-    const rd = new Date(r.return_date + "T00:00:00Z");
-    if (rd > dd) r.trip_days = Math.round((rd - dd) / 86400000);
+    if (days != null && rd > dd) r.trip_days = days;
   } catch {
     /* keep existing trip_days on parse failure */
   }
