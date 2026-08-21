@@ -43,7 +43,7 @@ import { serpapiGoogleFlights } from "./serpapi_flights.js";
 // MAX_VERIFIED_DESTINATIONS times. See cost warning in serpapi_flights.js
 // before enabling in production.
 // ---------------------------------------------------------------------------
-const PROVIDERS = [amadeus, skyscrapper, travelpayouts, kiwi, ryanair, serpapiGoogleFlights];
+export const PROVIDERS = [amadeus, skyscrapper, travelpayouts, kiwi, ryanair, serpapiGoogleFlights];
 
 export function configuredProviders() {
   return PROVIDERS.filter((p) => p.configured);

@@ -4,8 +4,58 @@ import { POPULAR_IT } from "../data/staticData.js";
 import { haversine } from "../lib/geo.js";
 import { SearchRequestSchema } from "../lib/validation.js";
 import { searchTrips } from "../lib/tripSearch.js";
+import { PROVIDERS, getCheapestOffer } from "../providers/index.js";
 
 export const router = Router();
+
+// ---------------------------------------------------------------------------
+// DEBUG TEMPORANEO: diagnosi provider/env su Vercel. Attivo SOLO se l'env var
+// DEBUG_KEY e' impostata E la query ?key= corrisponde. RIMUOVERE dopo l'uso.
+// ---------------------------------------------------------------------------
+router.get("/debug-providers", async (req, res) => {
+  const key = String(req.query.key ?? "");
+  if (!process.env.DEBUG_KEY || key !== process.env.DEBUG_KEY) {
+    return res.status(403).json({ error: "non autorizzato" });
+  }
+
+  const mask = (v) =>
+    v === undefined || v === "" ? "(ASSENTE/VUOTA)" : `${String(v).slice(0, 4)}...${String(v).slice(-4)} (${String(v).length} char)`;
+
+  const envReport = {};
+  for (const name of [
+    "TRAVELPAYOUTS_TOKEN",
+    "SERPAPI_API_KEY",
+    "RAPIDAPI_SKYSCRAPPER_KEY",
+    "RAPIDAPI_SKYSCRAPPER_HOST",
+    "AMADEUS_CLIENT_ID",
+    "AMADEUS_CLIENT_SECRET",
+    "KIWI_API_KEY",
+    "RYANAIR_ENABLED",
+    "MONGO_URL",
+    "VERCEL_REGION",
+  ]) {
+    envReport[name] = mask(process.env[name]);
+  }
+
+  const providersConfigured = PROVIDERS.map((p) => ({ name: p.name, configured: Boolean(p.configured) }));
+
+  let liveTest;
+  try {
+    const t0 = Date.now();
+    const { offer, tried, failed } = await getCheapestOffer("BRI", "TIA", "2026-10-09", "2026-10-12");
+    liveTest = {
+      route: "BRI->TIA 2026-10-09/12",
+      ms: Date.now() - t0,
+      offer: offer ? { price: offer.price, source: offer.source } : null,
+      tried,
+      failed,
+    };
+  } catch (e) {
+    liveTest = { error: e.message };
+  }
+
+  res.json({ env: envReport, providersConfigured, liveTest });
+});
 
 router.get("/", (_req, res) => {
   console.log("GET");
