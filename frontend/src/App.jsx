@@ -56,6 +56,17 @@ export default function App() {
         date_from: form.dateMode === "range" ? form.dateFrom : null,
         date_to: form.dateMode === "range" ? form.dateTo : null,
       });
+      // DEBUG TEMPORANEO: riepilogo qualità della risposta
+      if (Array.isArray(data)) {
+        const byType = {};
+        for (const r of data) byType[r.price_type] = (byType[r.price_type] || 0) + 1;
+        console.log(
+          `%c[waysout-debug] ← /api/search: ${data.length} risultati · per tipo: ${JSON.stringify(byType)} · fonti: ${JSON.stringify([...new Set(data.map((r) => r.price_source))])}`,
+          data.filter((r) => r.price_type === "estimated").length > data.length / 2
+            ? "color:#fca5a5;font-weight:bold"
+            : "color:#86efac"
+        );
+      }
       setResults(data);
     } catch (e) {
       // DEBUG TEMPORANEO
